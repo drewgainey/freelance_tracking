@@ -49,6 +49,12 @@ interface Client {
   active: boolean;
 }
 
+function extractDate(input: string): string {
+  const regex = /\d{2}\/\d{2}\/\d{2}/; // Matches a date in MM/DD/YY format
+  const match = input.match(regex);
+  return match ? match[0] : ""; // Return the matched date or null if no date is found
+}
+
 function SubmitInvoicesToFirestore({ disabled, selectedHours }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -78,12 +84,12 @@ function SubmitInvoicesToFirestore({ disabled, selectedHours }: Props) {
         amount: client ? client.rate * cur.hoursWorked * 100 : 0,
         currency: "usd",
         quantity: 1,
-        description: `${cur.hoursWorked} hours at $${cur.rate} per hour: ${cur.workPerformed}`,
+        description: `${cur.date} ${cur.hoursWorked} hours at $${cur.rate} per hour: ${cur.workPerformed}`,
       };
       const invoice: Invoice = {
         client: cur.client,
         email: client?.email,
-        invoiceDate: "03/31/24",
+        invoiceDate: "04/3/24",
         dueDate: "04/15/24",
         totalDue: cur.rate * cur.hoursWorked,
         amountPaid: 0,
@@ -106,7 +112,7 @@ function SubmitInvoicesToFirestore({ disabled, selectedHours }: Props) {
             amount: client ? client.rate * cur.hoursWorked * 100 : 0,
             currency: "usd",
             quantity: 1,
-            description: `${cur.hoursWorked} hours at $${cur.rate} per hour: ${cur.workPerformed}`,
+            description: `${cur.date} ${cur.hoursWorked} hours at $${cur.rate} per hour: ${cur.workPerformed}`,
           };
           clientInvoice.items.push(item);
         }
@@ -127,6 +133,12 @@ function SubmitInvoicesToFirestore({ disabled, selectedHours }: Props) {
         amountPaid: 0,
         hours: invoice.hours,
       };
+      invoice.items.sort((a, b) => {
+        const aDate: string = extractDate(a.description);
+        const bDate: string = extractDate(b.description);
+
+        return new Date(aDate).getTime() - new Date(bDate).getTime();
+      });
       const stripeInvoiceData = {
         email: invoice.email,
         items: invoice.items,

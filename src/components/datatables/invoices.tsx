@@ -21,6 +21,12 @@ function InvoicesDataTable({ clients }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
 
   useEffect(() => {
+    console.log(clients);
+
+    if (clients.length == 0) {
+      return;
+    }
+
     const invoicesQuery = query(
       collection(db, "invoices"),
       where("client", "in", clients)

@@ -1,18 +1,9 @@
-import {
-  Layout,
-  Card,
-  Typography,
-  Divider,
-  Table,
-  Tabs,
-  TabsProps,
-} from "antd";
-import { ColumnsType } from "antd/es/table";
-import { Key } from "antd/es/table/interface";
+import { Layout, Card, Typography, Divider, Tabs, TabsProps } from "antd";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import ExportToExcel from "../components/buttons/exportToExcel";
 import SubmitInvoicesToFirestore from "../components/buttons/submitInvoicesToFirestore";
+import HoursInvoiceable from "../components/datatables/hours/hoursInvoiceable";
 import InvoicesDataTable from "../components/datatables/invoices";
 import { db } from "../firebase";
 
@@ -31,8 +22,13 @@ interface BillableHours {
   rate: number;
 }
 
-interface AvailableHoursColumn extends BillableHours {
-  key: React.Key;
+interface Client {
+  clientName: string;
+  contact: string;
+  email: string;
+  rate: number;
+  active: boolean;
+  id: string;
 }
 
 interface Invoice {
@@ -47,6 +43,7 @@ interface Invoice {
 function Invoicing() {
   const [billableHours, setBillableHours] = useState<BillableHours[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [deactivateInvoiceButtons, setDeactivateInvoiceButtons] =
     useState(true);
   const [availableHoursSelectedRowKeys, setAvailableHoursSelectedRowKeys] =
@@ -75,15 +72,20 @@ function Invoicing() {
     []
   );
 
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "clients"), (snapshot) => {
+      setClients(
+        snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as Client))
+      );
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (!clients) {
+    return <div>Loading...</div>;
+  }
+
   //Table props and configuration
-  const clientFilters = Array.from(
-    new Set(billableHours.map((hour) => hour.client))
-  )
-    .sort()
-    .map((client) => ({
-      text: client,
-      value: client,
-    }));
 
   const availableHours = billableHours
     .filter((hour) => hour.billed === false)
@@ -92,48 +94,6 @@ function Invoicing() {
       key: hour.id,
     }));
 
-  const availableHoursColumns: ColumnsType<AvailableHoursColumn> = [
-    {
-      title: "Date",
-      dataIndex: "date",
-      key: 1,
-    },
-    {
-      title: "Client",
-      dataIndex: "client",
-      key: 2,
-      filters: clientFilters,
-      onFilter: (value: boolean | Key, record: AvailableHoursColumn) => {
-        return record.client === value;
-      },
-    },
-    {
-      title: "Start Time",
-      dataIndex: "start",
-      key: 3,
-    },
-    {
-      title: "End Time",
-      dataIndex: "end",
-      key: 4,
-    },
-    {
-      title: "Hours Worked",
-      dataIndex: "hoursWorked",
-      key: 5,
-    },
-    {
-      title: "Rate",
-      dataIndex: "rate",
-      key: 6,
-    },
-    {
-      title: "Work Performed",
-      dataIndex: "workPerformed",
-      key: 7,
-    },
-  ];
-
   const invoiceData = invoices.map((invoice) => {
     const oustandingBalance = invoice.totalDue - invoice.amountPaid;
     return {
@@ -141,39 +101,6 @@ function Invoicing() {
       outstandingBalance: oustandingBalance,
     };
   });
-  const columns = [
-    {
-      title: "Client",
-      dataIndex: "client",
-      key: 1,
-    },
-
-    {
-      title: "Invoice Date",
-      dataIndex: "invoiceDate",
-      key: 2,
-    },
-    {
-      title: "Due Date",
-      dataIndex: "dueDate",
-      key: 3,
-    },
-    {
-      title: "Total Due",
-      dataIndex: "totalDue",
-      key: 4,
-    },
-    {
-      title: "Amount Paid",
-      dataIndex: "amountPaid",
-      key: 5,
-    },
-    {
-      title: "Outstanding Balance",
-      dataIndex: "outstandingBalance",
-      key: 6,
-    },
-  ];
 
   const onAvailableHoursSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setAvailableHoursSelectedRowKeys(newSelectedRowKeys);
@@ -192,23 +119,21 @@ function Invoicing() {
     {
       key: "1",
       label: "Open Invoices",
-      children: <Table dataSource={invoiceData} columns={columns} />,
+      children: (
+        <InvoicesDataTable
+          clients={clients.map((client) => client.clientName)}
+        />
+      ),
     },
     {
       key: "2",
       label: "Billable Hours",
       children: (
-        <Table
+        <HoursInvoiceable
+          billableHours={availableHours}
           rowSelection={availableHoursRowSelection}
-          dataSource={availableHours as AvailableHoursColumn[]}
-          columns={availableHoursColumns}
         />
       ),
-    },
-    {
-      key: "3",
-      label: "Alt Invoices",
-      children: <InvoicesDataTable clients={["Asherify"]} />,
     },
   ];
   return (
